@@ -1,0 +1,12 @@
+package com.example.gameremotecontroller
+
+import androidx.navigation3.runtime.NavKey
+import kotlinx.serialization.Serializable
+
+@Serializable data object Main : NavKey
+
+@Serializable data object Play : NavKey
+
+@Serializable data object Edit : NavKey
+
+@Serializable data object Connection : NavKey
