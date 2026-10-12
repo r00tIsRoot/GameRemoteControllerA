@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -25,7 +27,8 @@ fun ConnectionScreen(
   onDisconnect: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Column(modifier.padding(16.dp)) {
+  // 가로모드 낮은 화면에서도 잘리지 않게 스크롤
+  Column(modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
     Text("PC 연결", style = MaterialTheme.typography.titleLarge)
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(

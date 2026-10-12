@@ -83,7 +83,7 @@ fun defaultMapleBindings(): Map<String, String> =
 private fun huntingButtons(): List<PadButton> =
   listOf(
     // 방향 이동은 조이스틱(8방향, MOVE_* 공유). 구 D패드 4버튼 대체.
-    PadButton("stick", "스틱", "", ButtonType.JOYSTICK, 0.03f, 0.50f, 0.34f),
+    PadButton("stick", "스틱", "", ButtonType.JOYSTICK, 0.03f, 0.50f, 0.40f),
     PadButton("jump", "점프", Actions.JUMP, ButtonType.TAP, 0.68f, 0.66f, 0.17f),
     PadButton("attack", "공격", Actions.ATTACK, ButtonType.HOLD, 0.82f, 0.50f, 0.17f),
     PadButton("pickup", "줍기", Actions.PICKUP, ButtonType.TAP, 0.56f, 0.78f, 0.14f),

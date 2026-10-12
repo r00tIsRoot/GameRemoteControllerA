@@ -9,15 +9,19 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +34,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -104,18 +109,61 @@ private fun LayoutTab(
 ) {
   var selectedId by remember(profile.name) { mutableStateOf(profile.buttons.firstOrNull()?.id) }
   val selected = profile.buttons.firstOrNull { it.id == selectedId }
-  var newLabel by remember { mutableStateOf("") }
 
-  Column(modifier.padding(12.dp)) {
-    Text("버튼을 드래그해 배치, 탭해 선택", style = MaterialTheme.typography.bodySmall)
-    Spacer(Modifier.height(6.dp))
-    // 캔버스: GamePadScreen과 동일 fraction 좌표계
-    BoxWithConstraints(
-      Modifier
-        .fillMaxWidth()
-        .height(340.dp)
-        .background(MaterialTheme.colorScheme.surfaceVariant),
-    ) {
+  // 방향별 분할 배치. 오버레이로 덮으면(특히 가로) 버튼이 가려져 편집 불가.
+  // 세로=위아래(캔버스+하단판), 가로=좌우(캔버스+우측 280dp판). 캔버스는 항상 전부 보임.
+  BoxWithConstraints(modifier.fillMaxSize()) {
+    if (maxWidth > maxHeight) {
+      Row(Modifier.fillMaxSize()) {
+        LayoutCanvas(
+          profile = profile,
+          selectedId = selectedId,
+          onSelect = { selectedId = it },
+          onChange = onChange,
+          modifier = Modifier.weight(1f).fillMaxHeight(),
+        )
+        LayoutPanel(
+          profile = profile,
+          selected = selected,
+          onSelectNew = { selectedId = it },
+          onChange = onChange,
+          modifier = Modifier.width(280.dp).fillMaxHeight(),
+        )
+      }
+    } else {
+      Column(Modifier.fillMaxSize()) {
+        LayoutCanvas(
+          profile = profile,
+          selectedId = selectedId,
+          onSelect = { selectedId = it },
+          onChange = onChange,
+          modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
+        LayoutPanel(
+          profile = profile,
+          selected = selected,
+          onSelectNew = { selectedId = it },
+          onChange = onChange,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    }
+  }
+}
+
+// 캔버스: GamePadScreen과 동일 fraction 좌표계
+@Composable
+private fun LayoutCanvas(
+  profile: GameProfile,
+  selectedId: String?,
+  onSelect: (String) -> Unit,
+  onChange: (GameProfile) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  BoxWithConstraints(
+    modifier
+      .background(MaterialTheme.colorScheme.surfaceVariant),
+  ) {
       val density = LocalDensity.current
       val wPx = constraints.maxWidth.toFloat()
       val hPx = constraints.maxHeight.toFloat()
@@ -146,7 +194,7 @@ private fun LayoutTab(
               .pointerInput(btn.id, wPx, hPx) {
                 awaitEachGesture {
                   val down = awaitFirstDown()
-                  selectedId = btn.id
+                  onSelect(btn.id)
                   var px = down.position
                   while (true) {
                     val event = awaitPointerEvent()
@@ -176,11 +224,39 @@ private fun LayoutTab(
         ) { Text(btn.label, style = MaterialTheme.typography.labelSmall) }
       }
     }
-    Spacer(Modifier.height(8.dp))
-    if (selected != null) {
-      Text("선택: ${selected.label} (${selected.type}) x=${"%.2f".format(selected.x)} y=${"%.2f".format(selected.y)}")
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("크기")
+}
+
+// 조작판: 세로형 스택이라 가로 280dp에서도 잘리지 않음. 접기로 캔버스 확보.
+@Composable
+private fun LayoutPanel(
+  profile: GameProfile,
+  selected: PadButton?,
+  onSelectNew: (String) -> Unit,
+  onChange: (GameProfile) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  var newLabel by remember { mutableStateOf("") }
+  var newType by remember { mutableStateOf(ButtonType.TAP) }
+  var collapsed by remember { mutableStateOf(false) }
+  Column(
+    modifier
+      .verticalScroll(rememberScrollState())
+      .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+      .padding(12.dp),
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Text(
+        "버튼을 드래그해 배치, 탭해 선택",
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.weight(1f),
+      )
+      TextButton(onClick = { collapsed = !collapsed }) { Text(if (collapsed) "펴기" else "접기") }
+    }
+    if (!collapsed) {
+      Spacer(Modifier.height(6.dp))
+      if (selected != null) {
+        Text("선택: ${selected.label} (${selected.type}) x=${"%.2f".format(selected.x)} y=${"%.2f".format(selected.y)}")
+        Text("크기", style = MaterialTheme.typography.bodySmall)
         Slider(
           value = selected.size,
           onValueChange = { s ->
@@ -188,67 +264,67 @@ private fun LayoutTab(
               profile.copy(buttons = profile.buttons.map { if (it.id == selected.id) it.copy(size = s) else it }),
             )
           },
-          valueRange = 0.08f..0.30f,
-          modifier = Modifier.weight(1f),
+          valueRange = if (selected.type == ButtonType.JOYSTICK) 0.15f..0.60f else 0.08f..0.30f,
+          modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedButton(
-          onClick = {
-            val next =
-              when (selected.type) {
-                ButtonType.TAP -> ButtonType.HOLD
-                ButtonType.HOLD -> ButtonType.TOGGLE
-                ButtonType.TOGGLE -> ButtonType.JOYSTICK
-                else -> ButtonType.TAP
-              }
-            onChange(
-              profile.copy(buttons = profile.buttons.map { if (it.id == selected.id) it.copy(type = next) else it }),
-            )
-          },
-        ) { Text(selected.type.name) }
-        OutlinedButton(
-          onClick = { onChange(profile.copy(buttons = profile.buttons.filterNot { it.id == selected.id })) },
-        ) { Text("삭제") }
+        Row {
+          OutlinedButton(
+            onClick = {
+              onChange(
+                profile.copy(buttons = profile.buttons.map { if (it.id == selected.id) it.copy(type = nextType(selected.type)) else it }),
+              )
+            },
+            modifier = Modifier.weight(1f),
+          ) { Text(selected.type.name) }
+          OutlinedButton(
+            onClick = { onChange(profile.copy(buttons = profile.buttons.filterNot { it.id == selected.id })) },
+            modifier = Modifier.weight(1f),
+          ) { Text("삭제") }
+        }
       }
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+      Spacer(Modifier.height(6.dp))
       OutlinedTextField(
         value = newLabel,
         onValueChange = { newLabel = it },
         label = { Text("새 버튼 라벨") },
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.fillMaxWidth(),
       )
-      var newType by remember { mutableStateOf(ButtonType.TAP) }
-      OutlinedButton(
-        onClick = {
-          newType =
-            when (newType) {
-              ButtonType.TAP -> ButtonType.HOLD
-              ButtonType.HOLD -> ButtonType.TOGGLE
-              ButtonType.TOGGLE -> ButtonType.JOYSTICK
-              else -> ButtonType.TAP
-            }
-        },
-      ) { Text(newType.name) }
-      Button(
-        onClick = {
-          val b =
-            PadButton(
-              id = UUID.randomUUID().toString(),
-              label = newLabel.ifBlank { if (newType == ButtonType.JOYSTICK) "스틱" else "새버튼" },
-              action = "ATTACK",
-              type = newType,
-              x = 0.4f,
-              y = 0.4f,
-              size = if (newType == ButtonType.JOYSTICK) 0.30f else 0.14f,
-            )
-          onChange(profile.copy(buttons = profile.buttons + b))
-          selectedId = b.id
-          newLabel = ""
-        },
-      ) { Text("추가") }
+      Spacer(Modifier.height(6.dp))
+      Row {
+        OutlinedButton(
+          onClick = { newType = nextType(newType) },
+          modifier = Modifier.weight(1f),
+        ) { Text(newType.name) }
+        Button(
+          onClick = {
+            val b =
+              PadButton(
+                id = UUID.randomUUID().toString(),
+                label = newLabel.ifBlank { if (newType == ButtonType.JOYSTICK) "스틱" else "새버튼" },
+                action = "ATTACK",
+                type = newType,
+                x = 0.4f,
+                y = 0.4f,
+                size = if (newType == ButtonType.JOYSTICK) 0.40f else 0.14f,
+              )
+            onChange(profile.copy(buttons = profile.buttons + b))
+            onSelectNew(b.id)
+            newLabel = ""
+          },
+          modifier = Modifier.weight(1f),
+        ) { Text("추가") }
+      }
     }
   }
 }
+
+private fun nextType(t: ButtonType): ButtonType =
+  when (t) {
+    ButtonType.TAP -> ButtonType.HOLD
+    ButtonType.HOLD -> ButtonType.TOGGLE
+    ButtonType.TOGGLE -> ButtonType.JOYSTICK
+    else -> ButtonType.TAP
+  }
 
 // ---------------------------------------------------------------- 신호 매칭 탭
 @Composable
